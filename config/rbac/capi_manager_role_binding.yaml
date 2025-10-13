@@ -1,0 +1,25 @@
+# This ClusterRoleBinding binds the capi-manager-evroc-access ClusterRole to the
+# CAPI manager service accounts, allowing them to manage Evroc infrastructure resources.
+#
+# IMPORTANT: This file is manually maintained (not generated).
+# Deployed automatically with: make deploy
+# Or manually with: kubectl apply -f config/rbac/capi_manager_role_binding.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: capi-manager-evroc-access
+  labels:
+    cluster.x-k8s.io/provider: infrastructure-evroc
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: capi-manager-evroc-access
+subjects:
+# CAPI manager (cluster-controller, machine-controller, etc.)
+- kind: ServiceAccount
+  name: capi-manager
+  namespace: capi-system
+# KubeadmControlPlane manager (creates and manages control plane Machines)
+- kind: ServiceAccount
+  name: capi-kubeadm-control-plane-manager
+  namespace: capi-kubeadm-control-plane-system

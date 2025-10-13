@@ -1,0 +1,9 @@
+apiVersion: infrastructure.evroc.com/v1beta1
+kind: EvrocCluster
+metadata:
+  labels:
+    app.kubernetes.io/name: cluster-api-provider-evroc
+    app.kubernetes.io/managed-by: kustomize
+  name: evroccluster-sample
+spec:
+  # TODO(user): Add fields here

@@ -1,0 +1,401 @@
+---
+# Secret containing Evroc credentials
+apiVersion: v1
+kind: Secret
+metadata:
+  name: "${CLUSTER_NAME}-evroc-credentials"
+  namespace: default
+  labels:
+    cluster.x-k8s.io/cluster-name: "${CLUSTER_NAME}"
+type: Opaque
+data:
+  # The kubeconfig from ~/.evroc/config.yaml will be base64 encoded here
+  # This gives the provider access to create resources in Evroc Cloud
+  config: ${EVROC_KUBECONFIG_B64}
+---
+# EvrocCluster defines the infrastructure for the cluster
+apiVersion: infrastructure.evroc.com/v1beta1
+kind: EvrocCluster
+metadata:
+  name: "${CLUSTER_NAME}"
+  namespace: default
+  labels:
+    cluster.x-k8s.io/cluster-name: "${CLUSTER_NAME}"
+spec:
+  # Evroc region and project
+  region: "${EVROC_REGION}"
+  project: "${EVROC_PROJECT}"
+
+  # Reference to the secret containing Evroc credentials (OIDC kubeconfig)
+  identitySecretName: "${CLUSTER_NAME}-evroc-credentials"
+
+  # Network configuration
+  network:
+    # VPC configuration
+    vpc:
+      name: "${EVROC_VPC_NAME:=capi-test-vpc}"
+
+    # Subnet configuration
+    subnets:
+      - name: "${EVROC_SUBNET_NAME:=capi-test-subnet}"
+        cidrBlock: "${EVROC_SUBNET_CIDR:=10.0.1.0/24}"
+
+  # Control plane endpoint (will be set to the first control plane node's IP)
+  # This can be a load balancer or floating IP in production
+  controlPlaneEndpoint:
+    host: ""  # Will be populated by the controller
+    port: 6443
+---
+# Cluster is the top-level CAPI resource
+apiVersion: cluster.x-k8s.io/v1beta1
+kind: Cluster
+metadata:
+  name: "${CLUSTER_NAME}"
+  namespace: default
+  labels:
+    cluster.x-k8s.io/cluster-name: "${CLUSTER_NAME}"
+spec:
+  clusterNetwork:
+    pods:
+      cidrBlocks:
+        - "${POD_CIDR:=192.168.0.0/16}"
+    services:
+      cidrBlocks:
+        - "${SERVICE_CIDR:=10.96.0.0/12}"
+
+  # Reference to infrastructure provider (EvrocCluster)
+  infrastructureRef:
+    apiVersion: infrastructure.evroc.com/v1beta1
+    kind: EvrocCluster
+    name: "${CLUSTER_NAME}"
+    namespace: default
+
+  # Reference to control plane provider (KubeadmControlPlane)
+  controlPlaneRef:
+    apiVersion: controlplane.cluster.x-k8s.io/v1beta1
+    kind: KubeadmControlPlane
+    name: "${CLUSTER_NAME}-control-plane"
+    namespace: default
+---
+# EvrocMachineTemplate for control plane nodes
+apiVersion: infrastructure.evroc.com/v1beta1
+kind: EvrocMachineTemplate
+metadata:
+  name: "${CLUSTER_NAME}-control-plane"
+  namespace: default
+  labels:
+    cluster.x-k8s.io/cluster-name: "${CLUSTER_NAME}"
+spec:
+  template:
+    spec:
+      # Machine type (e.g., c1a.s, m1a.l)
+      virtualResourcesRef: "${EVROC_CONTROL_PLANE_MACHINE_TYPE:=c1a.s}"
+
+      # Boot disk configuration
+      bootDisk:
+        imageName: "${EVROC_IMAGE_NAME:=ubuntu-24.04}"
+        storageClass: "persistent"
+        sizeGB: ${EVROC_DISK_SIZE:=20}
+
+      # SSH key for access
+      sshKey: "${EVROC_SSH_KEY:=}"
+
+      # Subnet to attach to
+      subnetName: "${EVROC_SUBNET_NAME:=capi-test-subnet}"
+
+      # Security groups for firewall rules
+      securityGroups:
+        - "capi-kubernetes"
+
+      # Allocate public IP for control plane
+      publicIP: true
+---
+# KubeadmControlPlane manages control plane machines
+apiVersion: controlplane.cluster.x-k8s.io/v1beta1
+kind: KubeadmControlPlane
+metadata:
+  name: "${CLUSTER_NAME}-control-plane"
+  namespace: default
+  labels:
+    cluster.x-k8s.io/cluster-name: "${CLUSTER_NAME}"
+spec:
+  replicas: ${CONTROL_PLANE_MACHINE_COUNT:=1}
+  version: "${KUBERNETES_VERSION:=v1.31.4}"
+
+  # Reference to infrastructure template
+  machineTemplate:
+    infrastructureRef:
+      apiVersion: infrastructure.evroc.com/v1beta1
+      kind: EvrocMachineTemplate
+      name: "${CLUSTER_NAME}-control-plane"
+      namespace: default
+
+  # Kubeadm configuration
+  kubeadmConfigSpec:
+    # Configure SSH user for Evroc cloud-init
+    # IMPORTANT: When using custom cloud-init with Evroc, SSH keys must be templated in
+    # See: https://docs.evroc.com/products/compute/howto/using-custom-cloud-init-userdata.html
+    users:
+      - name: evroc-user
+        gecos: evroc VM user
+        sudo: ALL=(ALL) NOPASSWD:ALL
+        groups: sudo
+        shell: /bin/bash
+        # Inject SSH keys from Evroc meta-data using Jinja2 template
+        # This is required because we're providing custom cloud-init
+        sshAuthorizedKeys:
+          - '{% if public_ssh_keys %}{% for pubkey in public_ssh_keys %}{{ pubkey }}{% endfor %}{% endif %}'
+
+    clusterConfiguration:
+      apiServer:
+        extraArgs:
+          # Bind to all interfaces to accept connections on public IP
+          bind-address: "0.0.0.0"
+        # Add cert SANs to include localhost
+        # TODO: For production with >1 control plane, add load balancer IP/DNS here
+        certSANs:
+          - localhost
+          - 127.0.0.1
+      controllerManager:
+        extraArgs: {}
+      networking:
+        dnsDomain: cluster.local
+        podSubnet: "${POD_CIDR:=192.168.0.0/16}"
+        serviceSubnet: "${SERVICE_CIDR:=10.96.0.0/12}"
+
+    initConfiguration:
+      # Kubeadm patches to fix probe configurations
+      # See: https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/control-plane-flags/#patches
+      patches:
+        directory: /etc/kubernetes/patches
+      nodeRegistration:
+        kubeletExtraArgs: {}
+        # Use cloud-init provided hostname (will be overridden by preKubeadmCommands if instance-id available)
+        name: '{{ ds.meta_data.local_hostname }}'
+      # Add local commands to inject node IP into API server cert SANs at init time
+      localAPIEndpoint:
+        advertiseAddress: "0.0.0.0"
+        bindPort: 6443
+
+    joinConfiguration:
+      nodeRegistration:
+        kubeletExtraArgs: {}
+        name: '{{ ds.meta_data.local_hostname }}'
+
+    # Files to create patch JSON files for kubeadm patches
+    files:
+      # Patch kube-apiserver to use localhost for liveness and readiness probes
+      # This prevents probe failures in dual-stack or networking edge cases
+      - path: /etc/kubernetes/patches/kube-apiserver+json.json
+        owner: root:root
+        permissions: "0644"
+        content: |
+          [
+            {
+              "op": "replace",
+              "path": "/spec/containers/0/livenessProbe/httpGet/host",
+              "value": "localhost"
+            },
+            {
+              "op": "replace",
+              "path": "/spec/containers/0/readinessProbe/httpGet/host",
+              "value": "localhost"
+            }
+          ]
+
+      # Remove etcd liveness and readiness probes entirely
+      # Based on community research (kubernetes/kubernetes#96886, etcd-io/etcd#13340):
+      # - etcd liveness probes cause database crashes during leader elections
+      # - /health endpoint fails during normal operations (scaling, elections)
+      # - Readiness probe failures trigger CrashLoopBackOff even without liveness probe
+      # - Many operators disable all etcd probes entirely
+      # - etcd is designed to self-heal through raft consensus
+      # - Kubernetes detects actual process crashes via pod status
+      - path: /etc/kubernetes/patches/etcd+json.json
+        owner: root:root
+        permissions: "0644"
+        content: |
+          [
+            {
+              "op": "remove",
+              "path": "/spec/containers/0/livenessProbe"
+            },
+            {
+              "op": "remove",
+              "path": "/spec/containers/0/readinessProbe"
+            }
+          ]
+
+    # Pre-kubeadm commands (e.g., configure networking, set up repos)
+    preKubeadmCommands:
+      - echo "Preparing node for Kubernetes installation"
+      # FIX #1: Disable swap permanently (critical for kubelet stability)
+      - swapoff -a
+      - sed -i.bak '/ swap / s/^/#/' /etc/fstab || true
+      # FIX #2: Ensure unique hostname using instance-id (prevents etcd member name collisions)
+      - |
+        instance_id="{{ ds.meta_data['instance-id'] }}"
+        if [ -n "$$instance_id" ]; then
+          # Use first 8 chars of instance-id for unique hostname
+          short_id=$$(echo "$$instance_id" | cut -d'-' -f1)
+          unique_hostname="k8s-cp-$${short_id}"
+          echo "Setting unique hostname: $$unique_hostname"
+          hostnamectl set-hostname "$$unique_hostname"
+        else
+          # Fallback to cloud-init provided hostname
+          hostnamectl set-hostname '{{ ds.meta_data.local_hostname }}'
+        fi
+        hostnamectl status
+      # Configure kernel modules and sysctl for Kubernetes
+      - modprobe overlay
+      - modprobe br_netfilter
+      - echo 'net.bridge.bridge-nf-call-iptables = 1' >> /etc/sysctl.conf
+      - echo 'net.bridge.bridge-nf-call-ip6tables = 1' >> /etc/sysctl.conf
+      - echo 'net.ipv4.ip_forward = 1' >> /etc/sysctl.conf
+      - sysctl -p
+      # Install containerd
+      - apt-get update
+      - apt-get install -y apt-transport-https ca-certificates curl gpg containerd
+      - mkdir -p /etc/containerd
+      - containerd config default > /etc/containerd/config.toml
+      - sed -i 's/SystemdCgroup = false/SystemdCgroup = true/' /etc/containerd/config.toml
+      - systemctl enable --now containerd
+      # Install Kubernetes components
+      - mkdir -p /etc/apt/keyrings
+      - curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.31/deb/Release.key | gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+      - echo 'deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.31/deb/ /' > /etc/apt/sources.list.d/kubernetes.list
+      - apt-get update
+      - apt-get install -y kubelet kubeadm kubectl
+      - apt-mark hold kubelet kubeadm kubectl
+      - systemctl enable kubelet
+
+    # Post-kubeadm commands (e.g., install CNI)
+    postKubeadmCommands:
+      - echo "Installing Calico CNI"
+      - kubectl --kubeconfig=/etc/kubernetes/admin.conf apply -f https://raw.githubusercontent.com/projectcalico/calico/v3.28.0/manifests/calico.yaml
+---
+# EvrocMachineTemplate for worker nodes
+apiVersion: infrastructure.evroc.com/v1beta1
+kind: EvrocMachineTemplate
+metadata:
+  name: "${CLUSTER_NAME}-worker"
+  namespace: default
+  labels:
+    cluster.x-k8s.io/cluster-name: "${CLUSTER_NAME}"
+spec:
+  template:
+    spec:
+      # Machine type for workers
+      virtualResourcesRef: "${EVROC_WORKER_MACHINE_TYPE:=c1a.s}"
+
+      # Boot disk configuration
+      bootDisk:
+        imageName: "${EVROC_IMAGE_NAME:=ubuntu-24.04}"
+        storageClass: "persistent"
+        sizeGB: ${EVROC_DISK_SIZE:=20}
+
+      # SSH key for access
+      sshKey: "${EVROC_SSH_KEY:=}"
+
+      # Subnet to attach to
+      subnetName: "${EVROC_SUBNET_NAME:=capi-test-subnet}"
+
+      # Security groups for firewall rules
+      securityGroups:
+        - "capi-kubernetes"
+
+      # Workers don't need public IPs
+      publicIP: false
+---
+# KubeadmConfigTemplate for worker nodes
+apiVersion: bootstrap.cluster.x-k8s.io/v1beta1
+kind: KubeadmConfigTemplate
+metadata:
+  name: "${CLUSTER_NAME}-worker"
+  namespace: default
+  labels:
+    cluster.x-k8s.io/cluster-name: "${CLUSTER_NAME}"
+spec:
+  template:
+    spec:
+      # Configure SSH user for Evroc cloud-init (same as control plane)
+      users:
+        - name: evroc-user
+          gecos: evroc VM user
+          sudo: ALL=(ALL) NOPASSWD:ALL
+          groups: sudo
+          shell: /bin/bash
+          sshAuthorizedKeys:
+            - '{% if public_ssh_keys %}{% for pubkey in public_ssh_keys %}{{ pubkey }}{% endfor %}{% endif %}'
+
+      joinConfiguration:
+        nodeRegistration:
+          kubeletExtraArgs: {}
+          name: '{{ ds.meta_data.local_hostname }}'
+
+      preKubeadmCommands:
+        - echo "Preparing worker node"
+        - hostnamectl set-hostname '{{ ds.meta_data.local_hostname }}'
+        # Configure kernel modules and sysctl for Kubernetes
+        - modprobe overlay
+        - modprobe br_netfilter
+        - echo 'net.bridge.bridge-nf-call-iptables = 1' >> /etc/sysctl.conf
+        - echo 'net.bridge.bridge-nf-call-ip6tables = 1' >> /etc/sysctl.conf
+        - echo 'net.ipv4.ip_forward = 1' >> /etc/sysctl.conf
+        - sysctl -p
+        # Install containerd
+        - apt-get update
+        - apt-get install -y apt-transport-https ca-certificates curl gpg containerd
+        - mkdir -p /etc/containerd
+        - containerd config default > /etc/containerd/config.toml
+        - sed -i 's/SystemdCgroup = false/SystemdCgroup = true/' /etc/containerd/config.toml
+        - systemctl enable --now containerd
+        # Install Kubernetes components
+        - mkdir -p /etc/apt/keyrings
+        - curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.31/deb/Release.key | gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+        - echo 'deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.31/deb/ /' > /etc/apt/sources.list.d/kubernetes.list
+        - apt-get update
+        - apt-get install -y kubelet kubeadm kubectl
+        - apt-mark hold kubelet kubeadm kubectl
+        - systemctl enable kubelet
+---
+# MachineDeployment manages worker machines
+apiVersion: cluster.x-k8s.io/v1beta1
+kind: MachineDeployment
+metadata:
+  name: "${CLUSTER_NAME}-workers"
+  namespace: default
+  labels:
+    cluster.x-k8s.io/cluster-name: "${CLUSTER_NAME}"
+spec:
+  clusterName: "${CLUSTER_NAME}"
+  replicas: ${WORKER_MACHINE_COUNT:=2}
+
+  selector:
+    matchLabels:
+      cluster.x-k8s.io/cluster-name: "${CLUSTER_NAME}"
+      cluster.x-k8s.io/deployment-name: "${CLUSTER_NAME}-workers"
+
+  template:
+    metadata:
+      labels:
+        cluster.x-k8s.io/cluster-name: "${CLUSTER_NAME}"
+        cluster.x-k8s.io/deployment-name: "${CLUSTER_NAME}-workers"
+    spec:
+      clusterName: "${CLUSTER_NAME}"
+      version: "${KUBERNETES_VERSION:=v1.31.4}"
+
+      # Reference to bootstrap provider
+      bootstrap:
+        configRef:
+          apiVersion: bootstrap.cluster.x-k8s.io/v1beta1
+          kind: KubeadmConfigTemplate
+          name: "${CLUSTER_NAME}-worker"
+          namespace: default
+
+      # Reference to infrastructure provider
+      infrastructureRef:
+        apiVersion: infrastructure.evroc.com/v1beta1
+        kind: EvrocMachineTemplate
+        name: "${CLUSTER_NAME}-worker"
+        namespace: default

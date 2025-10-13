@@ -1,0 +1,210 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.19.0
+  name: evrocmachines.infrastructure.evroc.com
+spec:
+  group: infrastructure.evroc.com
+  names:
+    categories:
+    - cluster-api
+    kind: EvrocMachine
+    listKind: EvrocMachineList
+    plural: evrocmachines
+    singular: evrocmachine
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - description: Cluster to which this EvrocMachine belongs
+      jsonPath: .metadata.labels.cluster\.x-k8s\.io/cluster-name
+      name: Cluster
+      type: string
+    - description: Machine object which owns this EvrocMachine
+      jsonPath: .metadata.ownerReferences[?(@.kind=="Machine")].name
+      name: Machine
+      type: string
+    - description: Machine is ready
+      jsonPath: .status.ready
+      name: Ready
+      type: string
+    - description: VM instance state
+      jsonPath: .status.instanceState
+      name: InstanceState
+      type: string
+    - description: Provider ID
+      jsonPath: .spec.providerID
+      name: ProviderID
+      type: string
+    name: v1beta1
+    schema:
+      openAPIV3Schema:
+        description: EvrocMachine is the Schema for the evrocmachines API
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: EvrocMachineSpec defines the desired state of EvrocMachine
+            properties:
+              bootDisk:
+                description: Defines the properties of the boot disk for the virtual
+                  machine.
+                properties:
+                  imageName:
+                    description: |-
+                      The name of the OS disk image to use (e.g., `ubuntu-minimal.24-04.1`).
+                      This maps to a DiskImage resource in evroc.
+                    type: string
+                  sizeGB:
+                    description: The size of the disk in Gigabytes.
+                    minimum: 1
+                    type: integer
+                  storageClass:
+                    description: The storage class for the disk. Must be `persistent`.
+                    enum:
+                    - persistent
+                    type: string
+                required:
+                - imageName
+                - sizeGB
+                - storageClass
+                type: object
+              providerID:
+                description: |-
+                  ProviderID is the unique identifier for the instance in the evroc cloud.
+                  This is typically set by the controller.
+                type: string
+              publicIP:
+                description: If true, a static public IP will be allocated and associated
+                  with this machine. Defaults to false.
+                type: boolean
+              securityGroups:
+                description: Security groups to attach to this machine for firewall
+                  rules.
+                items:
+                  type: string
+                type: array
+              sshKey:
+                description: The SSH public key that will be added to the `evroc-user`
+                  for remote access.
+                type: string
+              subnetName:
+                description: The name of the subnet to which this machine's primary
+                  network interface will be attached.
+                type: string
+              virtualResourcesRef:
+                description: |-
+                  The machine type and size (e.g., `c1a.s`, `m1a.l`).
+                  This maps to a VMVirtualResources resource in the evroc API.
+                type: string
+            required:
+            - bootDisk
+            - subnetName
+            - virtualResourcesRef
+            type: object
+          status:
+            description: EvrocMachineStatus defines the observed state of EvrocMachine
+            properties:
+              addresses:
+                description: Addresses is a list of addresses assigned to the machine.
+                items:
+                  description: NodeAddress contains information for the node's address.
+                  properties:
+                    address:
+                      description: The node address.
+                      type: string
+                    type:
+                      description: Node address type, one of Hostname, ExternalIP
+                        or InternalIP.
+                      type: string
+                  required:
+                  - address
+                  - type
+                  type: object
+                type: array
+              conditions:
+                description: Conditions defines current service state of the EvrocMachine.
+                items:
+                  description: Condition defines an observation of a Cluster API resource
+                    operational state.
+                  properties:
+                    lastTransitionTime:
+                      description: |-
+                        Last time the condition transitioned from one status to another.
+                        This should be when the underlying condition changed. If that is not known, then using the time when
+                        the API field changed is acceptable.
+                      format: date-time
+                      type: string
+                    message:
+                      description: |-
+                        A human readable message indicating details about the transition.
+                        This field may be empty.
+                      type: string
+                    reason:
+                      description: |-
+                        The reason for the condition's last transition in CamelCase.
+                        The specific API may choose whether or not this field is considered a guaranteed API.
+                        This field may not be empty.
+                      type: string
+                    severity:
+                      description: |-
+                        Severity provides an explicit classification of Reason code, so the users or machines can immediately
+                        understand the current situation and act accordingly.
+                        The Severity field MUST be set only when Status=False.
+                      type: string
+                    status:
+                      description: Status of the condition, one of True, False, Unknown.
+                      type: string
+                    type:
+                      description: |-
+                        Type of condition in CamelCase or in foo.example.com/CamelCase.
+                        Many .condition.type values are consistent across resources like Available, but because arbitrary conditions
+                        can be useful (see .node.status.conditions), the ability to deconflict is important.
+                      type: string
+                  required:
+                  - lastTransitionTime
+                  - status
+                  - type
+                  type: object
+                type: array
+              failureMessage:
+                description: |-
+                  FailureMessage will be set in case of a terminal problem
+                  and will contain a long user-readable message.
+                type: string
+              failureReason:
+                description: |-
+                  FailureReason will be set in case of a terminal problem
+                  and will contain a short value suitable for machine interpretation.
+                type: string
+              instanceState:
+                description: |-
+                  InstanceState is the current state of the evroc virtual machine.
+                  (e.g., `Running`, `Stopped`, `Creating`).
+                type: string
+              ready:
+                description: Ready indicates whether the machine is ready and has
+                  joined the cluster.
+                type: boolean
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
