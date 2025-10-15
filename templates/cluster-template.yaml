@@ -58,7 +58,7 @@ spec:
   clusterNetwork:
     pods:
       cidrBlocks:
-        - "${POD_CIDR:=192.168.0.0/16}"
+        - "${POD_CIDR:=10.244.0.0/16}"
     services:
       cidrBlocks:
         - "${SERVICE_CIDR:=10.96.0.0/12}"
@@ -160,7 +160,7 @@ spec:
         extraArgs: {}
       networking:
         dnsDomain: cluster.local
-        podSubnet: "${POD_CIDR:=192.168.0.0/16}"
+        podSubnet: "${POD_CIDR:=10.244.0.0/16}"
         serviceSubnet: "${SERVICE_CIDR:=10.96.0.0/12}"
 
     initConfiguration:
@@ -184,13 +184,18 @@ spec:
 
     # Files to create patch JSON files for kubeadm patches
     files:
-      # Patch kube-apiserver to use localhost for liveness and readiness probes
+      # Patch kube-apiserver to use localhost for ALL probes (startup, liveness, readiness)
       # This prevents probe failures in dual-stack or networking edge cases
       - path: /etc/kubernetes/patches/kube-apiserver+json.json
         owner: root:root
         permissions: "0644"
         content: |
           [
+            {
+              "op": "replace",
+              "path": "/spec/containers/0/startupProbe/httpGet/host",
+              "value": "localhost"
+            },
             {
               "op": "replace",
               "path": "/spec/containers/0/livenessProbe/httpGet/host",
@@ -203,26 +208,57 @@ spec:
             }
           ]
 
-      # Remove etcd liveness and readiness probes entirely
+      # Increase etcd probe timeouts and thresholds for better reliability
       # Based on community research (kubernetes/kubernetes#96886, etcd-io/etcd#13340):
-      # - etcd liveness probes cause database crashes during leader elections
-      # - /health endpoint fails during normal operations (scaling, elections)
-      # - Readiness probe failures trigger CrashLoopBackOff even without liveness probe
-      # - Many operators disable all etcd probes entirely
-      # - etcd is designed to self-heal through raft consensus
-      # - Kubernetes detects actual process crashes via pod status
+      # - etcd liveness probes can cause false positives during leader elections
+      # - Default timeouts are too aggressive for single-node clusters
+      # - Increased thresholds allow etcd to stabilize during normal operations
+      # - 6-minute initial delay to avoid probes during critical kubelet-finalize restart period
+      # Alternative: Many operators disable etcd probes entirely, but we try tuning first
       - path: /etc/kubernetes/patches/etcd+json.json
         owner: root:root
         permissions: "0644"
         content: |
           [
             {
-              "op": "remove",
-              "path": "/spec/containers/0/livenessProbe"
+              "op": "replace",
+              "path": "/spec/containers/0/startupProbe/initialDelaySeconds",
+              "value": 360
             },
             {
-              "op": "remove",
-              "path": "/spec/containers/0/readinessProbe"
+              "op": "replace",
+              "path": "/spec/containers/0/startupProbe/failureThreshold",
+              "value": 60
+            },
+            {
+              "op": "replace",
+              "path": "/spec/containers/0/livenessProbe/initialDelaySeconds",
+              "value": 360
+            },
+            {
+              "op": "replace",
+              "path": "/spec/containers/0/livenessProbe/failureThreshold",
+              "value": 60
+            },
+            {
+              "op": "replace",
+              "path": "/spec/containers/0/livenessProbe/timeoutSeconds",
+              "value": 30
+            },
+            {
+              "op": "replace",
+              "path": "/spec/containers/0/readinessProbe/initialDelaySeconds",
+              "value": 360
+            },
+            {
+              "op": "replace",
+              "path": "/spec/containers/0/readinessProbe/failureThreshold",
+              "value": 60
+            },
+            {
+              "op": "replace",
+              "path": "/spec/containers/0/readinessProbe/timeoutSeconds",
+              "value": 30
             }
           ]
 
@@ -270,9 +306,188 @@ spec:
       - systemctl enable kubelet
 
     # Post-kubeadm commands (e.g., install CNI)
+    # IMPORTANT: kubeadm init's [kubelet-finalize] phase restarts kubelet, which kills all
+    # running static pods. We MUST wait for them to recover before installing Calico.
+    # See: https://github.com/kubernetes/kubernetes/issues/105543
     postKubeadmCommands:
-      - echo "Installing Calico CNI"
-      - kubectl --kubeconfig=/etc/kubernetes/admin.conf apply -f https://raw.githubusercontent.com/projectcalico/calico/v3.28.0/manifests/calico.yaml
+      - echo "Kubeadm init completed. Waiting for control plane to recover from kubelet restart..."
+
+      # Give kubelet time to finish restarting and begin reconciling pods
+      - sleep 15
+
+      # Wait for etcd to be running (most critical component)
+      - |
+        echo "Waiting for etcd pod to be Running..."
+        for i in {1..60}; do
+          phase=$(kubectl --kubeconfig=/etc/kubernetes/admin.conf get pod -n kube-system -l component=etcd -o jsonpath='{.items[0].status.phase}' 2>/dev/null || echo "NotFound")
+          if [ "$phase" = "Running" ]; then
+            echo "✓ etcd is Running"
+            break
+          fi
+          if [ $i -eq 60 ]; then
+            echo "✗ ERROR: etcd failed to reach Running state after 5 minutes"
+            exit 1
+          fi
+          echo "  Attempt $i/60: etcd status is '$phase', waiting 5s..."
+          sleep 5
+        done
+
+      # Wait for API server to be running
+      - |
+        echo "Waiting for kube-apiserver pod to be Running..."
+        for i in {1..60}; do
+          phase=$(kubectl --kubeconfig=/etc/kubernetes/admin.conf get pod -n kube-system -l component=kube-apiserver -o jsonpath='{.items[0].status.phase}' 2>/dev/null || echo "NotFound")
+          if [ "$phase" = "Running" ]; then
+            echo "✓ kube-apiserver is Running"
+            break
+          fi
+          if [ $i -eq 60 ]; then
+            echo "✗ ERROR: kube-apiserver failed to reach Running state after 5 minutes"
+            exit 1
+          fi
+          echo "  Attempt $i/60: kube-apiserver status is '$phase', waiting 5s..."
+          sleep 5
+        done
+
+      # Wait for API server to be fully responsive (health check)
+      - |
+        echo "Waiting for API server to be healthy..."
+        for i in {1..60}; do
+          if kubectl --kubeconfig=/etc/kubernetes/admin.conf get --raw=/healthz 2>/dev/null | grep -q ok; then
+            echo "✓ API server is healthy"
+            break
+          fi
+          if [ $i -eq 60 ]; then
+            echo "✗ ERROR: API server failed to become healthy after 2 minutes"
+            exit 1
+          fi
+          echo "  Attempt $i/60: API server not yet healthy, waiting 2s..."
+          sleep 2
+        done
+
+      # Wait for controller-manager and scheduler (non-critical but good practice)
+      - |
+        echo "Waiting for kube-controller-manager pod to be Running..."
+        for i in {1..30}; do
+          phase=$(kubectl --kubeconfig=/etc/kubernetes/admin.conf get pod -n kube-system -l component=kube-controller-manager -o jsonpath='{.items[0].status.phase}' 2>/dev/null || echo "NotFound")
+          if [ "$phase" = "Running" ]; then
+            echo "✓ kube-controller-manager is Running"
+            break
+          fi
+          echo "  Attempt $i/30: kube-controller-manager status is '$phase', waiting 2s..."
+          sleep 2
+        done
+
+      - |
+        echo "Waiting for kube-scheduler pod to be Running..."
+        for i in {1..30}; do
+          phase=$(kubectl --kubeconfig=/etc/kubernetes/admin.conf get pod -n kube-system -l component=kube-scheduler -o jsonpath='{.items[0].status.phase}' 2>/dev/null || echo "NotFound")
+          if [ "$phase" = "Running" ]; then
+            echo "✓ kube-scheduler is Running"
+            break
+          fi
+          echo "  Attempt $i/30: kube-scheduler status is '$phase', waiting 2s..."
+          sleep 2
+        done
+
+      # All control plane components are now stable, but API server may not be fully ready
+      # for CRD operations that Calico requires. Add robust readiness checks.
+      - echo "✓ Control plane fully stabilized after kubelet restart"
+
+      # NEW: Wait for API server to serve CRD APIs (required for Calico)
+      # Calico needs to access /apis/crd.projectcalico.org/v1/clusterinformations
+      # First, ensure the API server can serve the apiextensions.k8s.io API group
+      - |
+        echo "Waiting for API server to serve CRD APIs..."
+        for i in {1..60}; do
+          if kubectl --kubeconfig=/etc/kubernetes/admin.conf get --raw=/apis/apiextensions.k8s.io/v1 2>/dev/null | grep -q "APIResourceList"; then
+            echo "✓ API server can serve CRD APIs"
+            break
+          fi
+          if [ $i -eq 60 ]; then
+            echo "✗ ERROR: API server failed to serve CRD APIs after 2 minutes"
+            exit 1
+          fi
+          echo "  Attempt $i/60: API server CRD APIs not ready, waiting 2s..."
+          sleep 2
+        done
+
+      # NEW: Wait for core Kubernetes APIs to be fully responsive
+      # Test that we can list namespaces (basic RBAC check)
+      - |
+        echo "Waiting for core Kubernetes APIs to be fully responsive..."
+        for i in {1..30}; do
+          if kubectl --kubeconfig=/etc/kubernetes/admin.conf get namespaces 2>/dev/null | grep -q "kube-system"; then
+            echo "✓ Core Kubernetes APIs are responsive"
+            break
+          fi
+          if [ $i -eq 30 ]; then
+            echo "✗ ERROR: Core APIs failed to respond after 1 minute"
+            exit 1
+          fi
+          echo "  Attempt $i/30: Core APIs not yet responsive, waiting 2s..."
+          sleep 2
+        done
+
+      # NEW: Additional stabilization delay before Calico installation
+      # This gives the API server extra time to fully initialize all internal components
+      # Especially important in KubeVirt environments with higher latency
+      - |
+        echo "Waiting 30 seconds for API server to fully stabilize..."
+        sleep 30
+        echo "✓ API server stabilization delay complete"
+
+      # NEW: Verify API server is still healthy before proceeding
+      - |
+        echo "Final API server health check before Calico installation..."
+        if kubectl --kubeconfig=/etc/kubernetes/admin.conf get --raw=/healthz 2>/dev/null | grep -q ok; then
+          echo "✓ API server is healthy and ready for Calico"
+        else
+          echo "✗ ERROR: API server health check failed before Calico installation"
+          exit 1
+        fi
+
+      # Install Flannel CNI (simpler alternative to Calico)
+      # Flannel has minimal API server dependencies and is more tolerant of timing issues
+      # Perfect for KubeVirt environments with higher latency
+      - |
+        echo "Installing Flannel CNI..."
+        max_attempts=3
+        for attempt in $(seq 1 $max_attempts); do
+          echo "  Flannel install attempt $attempt/$max_attempts..."
+          if kubectl --kubeconfig=/etc/kubernetes/admin.conf apply -f https://github.com/flannel-io/flannel/releases/latest/download/kube-flannel.yml 2>&1 | tee /tmp/flannel-install.log; then
+            echo "✓ Flannel CNI installed successfully"
+            break
+          else
+            if [ $attempt -eq $max_attempts ]; then
+              echo "✗ ERROR: Failed to install Flannel after $max_attempts attempts"
+              cat /tmp/flannel-install.log
+              exit 1
+            fi
+            echo "  Flannel install failed, waiting 10s before retry..."
+            sleep 10
+          fi
+        done
+
+      # Wait for Flannel DaemonSet to be ready
+      - |
+        echo "Waiting for Flannel pods to be ready..."
+        for i in {1..60}; do
+          ready_pods=$(kubectl --kubeconfig=/etc/kubernetes/admin.conf get pods -n kube-flannel -l app=flannel -o jsonpath='{.items[*].status.conditions[?(@.type=="Ready")].status}' 2>/dev/null | grep -o "True" | wc -l)
+          if [ "$ready_pods" -gt 0 ]; then
+            echo "✓ Flannel pods are ready ($ready_pods pod(s))"
+            break
+          fi
+          if [ $i -eq 60 ]; then
+            echo "⚠ WARNING: Flannel pods not ready after 2 minutes (may be normal)"
+            echo "  Flannel will continue initializing in the background"
+            break
+          fi
+          echo "  Attempt $i/60: Flannel pods not ready yet, waiting 2s..."
+          sleep 2
+        done
+
+      - echo "✓ Flannel CNI installation sequence complete"
 ---
 # EvrocMachineTemplate for worker nodes
 apiVersion: infrastructure.evroc.com/v1beta1
