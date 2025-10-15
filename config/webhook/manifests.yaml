@@ -1,0 +1,1075 @@
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: MutatingWebhookConfiguration
+metadata:
+  name: mutating-webhook-configuration
+webhooks:
+- admissionReviewVersions:
+  - v1
+  - v1beta1
+  clientConfig:
+    service:
+      name: webhook-service
+      namespace: system
+      path: /mutate-cluster-x-k8s-io-v1beta2-cluster
+  failurePolicy: Fail
+  matchPolicy: Equivalent
+  name: default.cluster.cluster.x-k8s.io
+  rules:
+  - apiGroups:
+    - cluster.x-k8s.io
+    apiVersions:
+    - v1beta2
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - clusters
+  sideEffects: None
+- admissionReviewVersions:
+  - v1
+  - v1beta1
+  clientConfig:
+    service:
+      name: webhook-service
+      namespace: system
+      path: /mutate-addons-cluster-x-k8s-io-v1beta2-clusterresourceset
+  failurePolicy: Fail
+  matchPolicy: Equivalent
+  name: default.clusterresourceset.addons.cluster.x-k8s.io
+  rules:
+  - apiGroups:
+    - addons.cluster.x-k8s.io
+    apiVersions:
+    - v1beta2
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - clusterresourcesets
+  sideEffects: None
+- admissionReviewVersions:
+  - v1
+  - v1beta1
+  clientConfig:
+    service:
+      name: webhook-service
+      namespace: system
+      path: /mutate-runtime-cluster-x-k8s-io-v1beta2-extensionconfig
+  failurePolicy: Fail
+  matchPolicy: Equivalent
+  name: default.extensionconfig.runtime.addons.cluster.x-k8s.io
+  rules:
+  - apiGroups:
+    - runtime.cluster.x-k8s.io
+    apiVersions:
+    - v1beta2
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - extensionconfigs
+  sideEffects: None
+- admissionReviewVersions:
+  - v1
+  - v1beta1
+  clientConfig:
+    service:
+      name: webhook-service
+      namespace: system
+      path: /mutate-cluster-x-k8s-io-v1beta2-machine
+  failurePolicy: Fail
+  matchPolicy: Equivalent
+  name: default.machine.cluster.x-k8s.io
+  rules:
+  - apiGroups:
+    - cluster.x-k8s.io
+    apiVersions:
+    - v1beta2
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - machines
+  sideEffects: None
+- admissionReviewVersions:
+  - v1
+  - v1beta1
+  clientConfig:
+    service:
+      name: webhook-service
+      namespace: system
+      path: /mutate-cluster-x-k8s-io-v1beta2-machinedeployment
+  failurePolicy: Fail
+  matchPolicy: Equivalent
+  name: default.machinedeployment.cluster.x-k8s.io
+  rules:
+  - apiGroups:
+    - cluster.x-k8s.io
+    apiVersions:
+    - v1beta2
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - machinedeployments
+  sideEffects: None
+- admissionReviewVersions:
+  - v1
+  - v1beta1
+  clientConfig:
+    service:
+      name: webhook-service
+      namespace: system
+      path: /mutate-cluster-x-k8s-io-v1beta2-machinehealthcheck
+  failurePolicy: Fail
+  matchPolicy: Equivalent
+  name: default.machinehealthcheck.cluster.x-k8s.io
+  rules:
+  - apiGroups:
+    - cluster.x-k8s.io
+    apiVersions:
+    - v1beta2
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - machinehealthchecks
+  sideEffects: None
+- admissionReviewVersions:
+  - v1
+  - v1beta1
+  clientConfig:
+    service:
+      name: webhook-service
+      namespace: system
+      path: /mutate-cluster-x-k8s-io-v1beta2-machinepool
+  failurePolicy: Fail
+  matchPolicy: Equivalent
+  name: default.machinepool.cluster.x-k8s.io
+  rules:
+  - apiGroups:
+    - cluster.x-k8s.io
+    apiVersions:
+    - v1beta2
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - machinepools
+  sideEffects: None
+- admissionReviewVersions:
+  - v1
+  - v1beta1
+  clientConfig:
+    service:
+      name: webhook-service
+      namespace: system
+      path: /mutate-cluster-x-k8s-io-v1beta2-machineset
+  failurePolicy: Fail
+  matchPolicy: Equivalent
+  name: default.machineset.cluster.x-k8s.io
+  rules:
+  - apiGroups:
+    - cluster.x-k8s.io
+    apiVersions:
+    - v1beta2
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - machinesets
+  sideEffects: None
+- admissionReviewVersions:
+  - v1
+  - v1beta1
+  clientConfig:
+    service:
+      name: webhook-service
+      namespace: system
+      path: /mutate-bootstrap-cluster-x-k8s-io-v1beta2-kubeadmconfigtemplate
+  failurePolicy: Fail
+  name: default.kubeadmconfigtemplate.bootstrap.cluster.x-k8s.io
+  rules:
+  - apiGroups:
+    - bootstrap.cluster.x-k8s.io
+    apiVersions:
+    - v1beta2
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - kubeadmconfigtemplates
+  sideEffects: None
+- admissionReviewVersions:
+  - v1
+  - v1beta1
+  clientConfig:
+    service:
+      name: webhook-service
+      namespace: system
+      path: /mutate-controlplane-cluster-x-k8s-io-v1beta2-kubeadmcontrolplane
+  failurePolicy: Fail
+  matchPolicy: Equivalent
+  name: default.kubeadmcontrolplane.controlplane.cluster.x-k8s.io
+  rules:
+  - apiGroups:
+    - controlplane.cluster.x-k8s.io
+    apiVersions:
+    - v1beta2
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - kubeadmcontrolplanes
+  sideEffects: None
+- admissionReviewVersions:
+  - v1
+  - v1beta1
+  clientConfig:
+    service:
+      name: webhook-service
+      namespace: system
+      path: /mutate-infrastructure-cluster-x-k8s-io-v1beta2-devcluster
+  failurePolicy: Fail
+  matchPolicy: Equivalent
+  name: default.devcluster.infrastructure.cluster.x-k8s.io
+  rules:
+  - apiGroups:
+    - infrastructure.cluster.x-k8s.io
+    apiVersions:
+    - v1beta2
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - devclusters
+  sideEffects: None
+- admissionReviewVersions:
+  - v1
+  - v1beta1
+  clientConfig:
+    service:
+      name: webhook-service
+      namespace: system
+      path: /mutate-infrastructure-cluster-x-k8s-io-v1beta2-devclustertemplate
+  failurePolicy: Fail
+  matchPolicy: Equivalent
+  name: default.devclustertemplate.infrastructure.cluster.x-k8s.io
+  rules:
+  - apiGroups:
+    - infrastructure.cluster.x-k8s.io
+    apiVersions:
+    - v1beta2
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - devclustertemplates
+  sideEffects: None
+- admissionReviewVersions:
+  - v1
+  - v1beta1
+  clientConfig:
+    service:
+      name: webhook-service
+      namespace: system
+      path: /mutate-infrastructure-cluster-x-k8s-io-v1beta2-devmachine
+  failurePolicy: Fail
+  matchPolicy: Equivalent
+  name: default.devmachine.infrastructure.cluster.x-k8s.io
+  rules:
+  - apiGroups:
+    - infrastructure.cluster.x-k8s.io
+    apiVersions:
+    - v1beta2
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - devmachines
+  sideEffects: None
+- admissionReviewVersions:
+  - v1
+  - v1beta1
+  clientConfig:
+    service:
+      name: webhook-service
+      namespace: system
+      path: /mutate-infrastructure-cluster-x-k8s-io-v1beta2-devmachinetemplate
+  failurePolicy: Fail
+  matchPolicy: Equivalent
+  name: default.devmachinetemplate.infrastructure.cluster.x-k8s.io
+  rules:
+  - apiGroups:
+    - infrastructure.cluster.x-k8s.io
+    apiVersions:
+    - v1beta2
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - devmachinetemplates
+  sideEffects: None
+- admissionReviewVersions:
+  - v1
+  - v1beta1
+  clientConfig:
+    service:
+      name: webhook-service
+      namespace: system
+      path: /mutate-infrastructure-cluster-x-k8s-io-v1beta2-dockercluster
+  failurePolicy: Fail
+  matchPolicy: Equivalent
+  name: default.dockercluster.infrastructure.cluster.x-k8s.io
+  rules:
+  - apiGroups:
+    - infrastructure.cluster.x-k8s.io
+    apiVersions:
+    - v1beta2
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - dockerclusters
+  sideEffects: None
+- admissionReviewVersions:
+  - v1
+  - v1beta1
+  clientConfig:
+    service:
+      name: webhook-service
+      namespace: system
+      path: /mutate-infrastructure-cluster-x-k8s-io-v1beta2-dockerclustertemplate
+  failurePolicy: Fail
+  matchPolicy: Equivalent
+  name: default.dockerclustertemplate.infrastructure.cluster.x-k8s.io
+  rules:
+  - apiGroups:
+    - infrastructure.cluster.x-k8s.io
+    apiVersions:
+    - v1beta2
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - dockerclustertemplates
+  sideEffects: None
+- admissionReviewVersions:
+  - v1
+  clientConfig:
+    service:
+      name: webhook-service
+      namespace: system
+      path: /mutate-bootstrap-cluster-x-k8s-io-v1beta1-rke2config
+  failurePolicy: Fail
+  name: mrke2config.kb.io
+  rules:
+  - apiGroups:
+    - bootstrap.cluster.x-k8s.io
+    apiVersions:
+    - v1beta1
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - rke2configs
+  sideEffects: None
+- admissionReviewVersions:
+  - v1
+  clientConfig:
+    service:
+      name: webhook-service
+      namespace: system
+      path: /mutate-bootstrap-cluster-x-k8s-io-v1beta1-rke2configtemplate
+  failurePolicy: Fail
+  name: mrke2configtemplate.kb.io
+  rules:
+  - apiGroups:
+    - bootstrap.cluster.x-k8s.io
+    apiVersions:
+    - v1beta1
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - rke2configtemplates
+  sideEffects: None
+- admissionReviewVersions:
+  - v1
+  clientConfig:
+    service:
+      name: webhook-service
+      namespace: system
+      path: /mutate-controlplane-cluster-x-k8s-io-v1beta1-rke2controlplane
+  failurePolicy: Fail
+  name: mrke2controlplane.kb.io
+  rules:
+  - apiGroups:
+    - controlplane.cluster.x-k8s.io
+    apiVersions:
+    - v1beta1
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - rke2controlplanes
+  sideEffects: None
+- admissionReviewVersions:
+  - v1
+  clientConfig:
+    service:
+      name: webhook-service
+      namespace: system
+      path: /mutate-controlplane-cluster-x-k8s-io-v1beta1-rke2controlplanetemplate
+  failurePolicy: Fail
+  name: mrke2controlplanetemplate.kb.io
+  rules:
+  - apiGroups:
+    - controlplane.cluster.x-k8s.io
+    apiVersions:
+    - v1beta1
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - rke2controlplanetemplates
+  sideEffects: None
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingWebhookConfiguration
+metadata:
+  name: validating-webhook-configuration
+webhooks:
+- admissionReviewVersions:
+  - v1
+  - v1beta1
+  clientConfig:
+    service:
+      name: webhook-service
+      namespace: system
+      path: /validate-cluster-x-k8s-io-v1beta2-cluster
+  failurePolicy: Fail
+  matchPolicy: Equivalent
+  name: validation.cluster.cluster.x-k8s.io
+  rules:
+  - apiGroups:
+    - cluster.x-k8s.io
+    apiVersions:
+    - v1beta2
+    operations:
+    - CREATE
+    - UPDATE
+    - DELETE
+    resources:
+    - clusters
+  sideEffects: None
+- admissionReviewVersions:
+  - v1
+  - v1beta1
+  clientConfig:
+    service:
+      name: webhook-service
+      namespace: system
+      path: /validate-cluster-x-k8s-io-v1beta2-clusterclass
+  failurePolicy: Fail
+  matchPolicy: Equivalent
+  name: validation.clusterclass.cluster.x-k8s.io
+  rules:
+  - apiGroups:
+    - cluster.x-k8s.io
+    apiVersions:
+    - v1beta2
+    operations:
+    - CREATE
+    - UPDATE
+    - DELETE
+    resources:
+    - clusterclasses
+  sideEffects: None
+- admissionReviewVersions:
+  - v1
+  - v1beta1
+  clientConfig:
+    service:
+      name: webhook-service
+      namespace: system
+      path: /validate-addons-cluster-x-k8s-io-v1beta2-clusterresourceset
+  failurePolicy: Fail
+  matchPolicy: Equivalent
+  name: validation.clusterresourceset.addons.cluster.x-k8s.io
+  rules:
+  - apiGroups:
+    - addons.cluster.x-k8s.io
+    apiVersions:
+    - v1beta2
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - clusterresourcesets
+  sideEffects: None
+- admissionReviewVersions:
+  - v1
+  - v1beta1
+  clientConfig:
+    service:
+      name: webhook-service
+      namespace: system
+      path: /validate-addons-cluster-x-k8s-io-v1beta2-clusterresourcesetbinding
+  failurePolicy: Fail
+  matchPolicy: Equivalent
+  name: validation.clusterresourcesetbinding.addons.cluster.x-k8s.io
+  rules:
+  - apiGroups:
+    - addons.cluster.x-k8s.io
+    apiVersions:
+    - v1beta2
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - clusterresourcesetbindings
+  sideEffects: None
+- admissionReviewVersions:
+  - v1
+  - v1beta1
+  clientConfig:
+    service:
+      name: webhook-service
+      namespace: system
+      path: /validate-runtime-cluster-x-k8s-io-v1beta2-extensionconfig
+  failurePolicy: Fail
+  matchPolicy: Equivalent
+  name: validation.extensionconfig.runtime.cluster.x-k8s.io
+  rules:
+  - apiGroups:
+    - runtime.cluster.x-k8s.io
+    apiVersions:
+    - v1beta2
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - extensionconfigs
+  sideEffects: None
+- admissionReviewVersions:
+  - v1
+  - v1beta1
+  clientConfig:
+    service:
+      name: webhook-service
+      namespace: system
+      path: /validate-ipam-cluster-x-k8s-io-v1beta2-ipaddress
+  failurePolicy: Fail
+  matchPolicy: Equivalent
+  name: validation.ipaddress.ipam.cluster.x-k8s.io
+  rules:
+  - apiGroups:
+    - ipam.cluster.x-k8s.io
+    apiVersions:
+    - v1beta2
+    operations:
+    - CREATE
+    - UPDATE
+    - DELETE
+    resources:
+    - ipaddresses
+  sideEffects: None
+- admissionReviewVersions:
+  - v1
+  - v1beta1
+  clientConfig:
+    service:
+      name: webhook-service
+      namespace: system
+      path: /validate-ipam-cluster-x-k8s-io-v1beta2-ipaddressclaim
+  failurePolicy: Fail
+  matchPolicy: Equivalent
+  name: validation.ipaddressclaim.ipam.cluster.x-k8s.io
+  rules:
+  - apiGroups:
+    - ipam.cluster.x-k8s.io
+    apiVersions:
+    - v1beta2
+    operations:
+    - CREATE
+    - UPDATE
+    - DELETE
+    resources:
+    - ipaddressclaims
+  sideEffects: None
+- admissionReviewVersions:
+  - v1
+  - v1beta1
+  clientConfig:
+    service:
+      name: webhook-service
+      namespace: system
+      path: /validate-cluster-x-k8s-io-v1beta2-machine
+  failurePolicy: Fail
+  matchPolicy: Equivalent
+  name: validation.machine.cluster.x-k8s.io
+  rules:
+  - apiGroups:
+    - cluster.x-k8s.io
+    apiVersions:
+    - v1beta2
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - machines
+  sideEffects: None
+- admissionReviewVersions:
+  - v1
+  - v1beta1
+  clientConfig:
+    service:
+      name: webhook-service
+      namespace: system
+      path: /validate-cluster-x-k8s-io-v1beta2-machinedeployment
+  failurePolicy: Fail
+  matchPolicy: Equivalent
+  name: validation.machinedeployment.cluster.x-k8s.io
+  rules:
+  - apiGroups:
+    - cluster.x-k8s.io
+    apiVersions:
+    - v1beta2
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - machinedeployments
+  sideEffects: None
+- admissionReviewVersions:
+  - v1
+  - v1beta1
+  clientConfig:
+    service:
+      name: webhook-service
+      namespace: system
+      path: /validate-cluster-x-k8s-io-v1beta2-machinedrainrule
+  failurePolicy: Fail
+  matchPolicy: Equivalent
+  name: validation.machinedrainrule.cluster.x-k8s.io
+  rules:
+  - apiGroups:
+    - cluster.x-k8s.io
+    apiVersions:
+    - v1beta2
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - machinedrainrules
+  sideEffects: None
+- admissionReviewVersions:
+  - v1
+  - v1beta1
+  clientConfig:
+    service:
+      name: webhook-service
+      namespace: system
+      path: /validate-cluster-x-k8s-io-v1beta2-machinehealthcheck
+  failurePolicy: Fail
+  matchPolicy: Equivalent
+  name: validation.machinehealthcheck.cluster.x-k8s.io
+  rules:
+  - apiGroups:
+    - cluster.x-k8s.io
+    apiVersions:
+    - v1beta2
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - machinehealthchecks
+  sideEffects: None
+- admissionReviewVersions:
+  - v1
+  - v1beta1
+  clientConfig:
+    service:
+      name: webhook-service
+      namespace: system
+      path: /validate-cluster-x-k8s-io-v1beta2-machinepool
+  failurePolicy: Fail
+  matchPolicy: Equivalent
+  name: validation.machinepool.cluster.x-k8s.io
+  rules:
+  - apiGroups:
+    - cluster.x-k8s.io
+    apiVersions:
+    - v1beta2
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - machinepools
+  sideEffects: None
+- admissionReviewVersions:
+  - v1
+  - v1beta1
+  clientConfig:
+    service:
+      name: webhook-service
+      namespace: system
+      path: /validate-cluster-x-k8s-io-v1beta2-machineset
+  failurePolicy: Fail
+  matchPolicy: Equivalent
+  name: validation.machineset.cluster.x-k8s.io
+  rules:
+  - apiGroups:
+    - cluster.x-k8s.io
+    apiVersions:
+    - v1beta2
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - machinesets
+  sideEffects: None
+- admissionReviewVersions:
+  - v1
+  - v1beta1
+  clientConfig:
+    service:
+      name: webhook-service
+      namespace: system
+      path: /validate-bootstrap-cluster-x-k8s-io-v1beta2-kubeadmconfig
+  failurePolicy: Fail
+  matchPolicy: Equivalent
+  name: validation.kubeadmconfig.bootstrap.cluster.x-k8s.io
+  rules:
+  - apiGroups:
+    - bootstrap.cluster.x-k8s.io
+    apiVersions:
+    - v1beta2
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - kubeadmconfigs
+  sideEffects: None
+- admissionReviewVersions:
+  - v1
+  - v1beta1
+  clientConfig:
+    service:
+      name: webhook-service
+      namespace: system
+      path: /validate-bootstrap-cluster-x-k8s-io-v1beta2-kubeadmconfigtemplate
+  failurePolicy: Fail
+  matchPolicy: Equivalent
+  name: validation.kubeadmconfigtemplate.bootstrap.cluster.x-k8s.io
+  rules:
+  - apiGroups:
+    - bootstrap.cluster.x-k8s.io
+    apiVersions:
+    - v1beta2
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - kubeadmconfigtemplates
+  sideEffects: None
+- admissionReviewVersions:
+  - v1
+  - v1beta1
+  clientConfig:
+    service:
+      name: webhook-service
+      namespace: system
+      path: /validate-scale-controlplane-cluster-x-k8s-io-v1beta2-kubeadmcontrolplane
+  failurePolicy: Fail
+  matchPolicy: Equivalent
+  name: validation-scale.kubeadmcontrolplane.controlplane.cluster.x-k8s.io
+  rules:
+  - apiGroups:
+    - controlplane.cluster.x-k8s.io
+    apiVersions:
+    - v1beta2
+    operations:
+    - UPDATE
+    resources:
+    - kubeadmcontrolplanes/scale
+  sideEffects: None
+- admissionReviewVersions:
+  - v1
+  - v1beta1
+  clientConfig:
+    service:
+      name: webhook-service
+      namespace: system
+      path: /validate-controlplane-cluster-x-k8s-io-v1beta2-kubeadmcontrolplane
+  failurePolicy: Fail
+  matchPolicy: Equivalent
+  name: validation.kubeadmcontrolplane.controlplane.cluster.x-k8s.io
+  rules:
+  - apiGroups:
+    - controlplane.cluster.x-k8s.io
+    apiVersions:
+    - v1beta2
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - kubeadmcontrolplanes
+  sideEffects: None
+- admissionReviewVersions:
+  - v1
+  - v1beta1
+  clientConfig:
+    service:
+      name: webhook-service
+      namespace: system
+      path: /validate-controlplane-cluster-x-k8s-io-v1beta2-kubeadmcontrolplanetemplate
+  failurePolicy: Fail
+  name: validation.kubeadmcontrolplanetemplate.controlplane.cluster.x-k8s.io
+  rules:
+  - apiGroups:
+    - controlplane.cluster.x-k8s.io
+    apiVersions:
+    - v1beta2
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - kubeadmcontrolplanetemplates
+  sideEffects: None
+- admissionReviewVersions:
+  - v1
+  - v1beta1
+  clientConfig:
+    service:
+      name: webhook-service
+      namespace: system
+      path: /validate-infrastructure-cluster-x-k8s-io-v1beta2-devcluster
+  failurePolicy: Fail
+  matchPolicy: Equivalent
+  name: validation.devcluster.infrastructure.cluster.x-k8s.io
+  rules:
+  - apiGroups:
+    - infrastructure.cluster.x-k8s.io
+    apiVersions:
+    - v1beta2
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - devclusters
+  sideEffects: None
+- admissionReviewVersions:
+  - v1
+  - v1beta1
+  clientConfig:
+    service:
+      name: webhook-service
+      namespace: system
+      path: /validate-infrastructure-cluster-x-k8s-io-v1beta2-devclustertemplate
+  failurePolicy: Fail
+  matchPolicy: Equivalent
+  name: validation.devclustertemplate.infrastructure.cluster.x-k8s.io
+  rules:
+  - apiGroups:
+    - infrastructure.cluster.x-k8s.io
+    apiVersions:
+    - v1beta2
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - devclustertemplates
+  sideEffects: None
+- admissionReviewVersions:
+  - v1
+  - v1beta1
+  clientConfig:
+    service:
+      name: webhook-service
+      namespace: system
+      path: /validate-infrastructure-cluster-x-k8s-io-v1beta2-devmachine
+  failurePolicy: Fail
+  matchPolicy: Equivalent
+  name: validation.devmachine.infrastructure.cluster.x-k8s.io
+  rules:
+  - apiGroups:
+    - infrastructure.cluster.x-k8s.io
+    apiVersions:
+    - v1beta2
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - devmachines
+  sideEffects: None
+- admissionReviewVersions:
+  - v1
+  - v1beta1
+  clientConfig:
+    service:
+      name: webhook-service
+      namespace: system
+      path: /validate-infrastructure-cluster-x-k8s-io-v1beta2-devmachinetemplate
+  failurePolicy: Fail
+  matchPolicy: Equivalent
+  name: validation.devmachinetemplate.infrastructure.cluster.x-k8s.io
+  rules:
+  - apiGroups:
+    - infrastructure.cluster.x-k8s.io
+    apiVersions:
+    - v1beta2
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - devmachinetemplates
+  sideEffects: None
+- admissionReviewVersions:
+  - v1
+  - v1beta1
+  clientConfig:
+    service:
+      name: webhook-service
+      namespace: system
+      path: /validate-infrastructure-cluster-x-k8s-io-v1beta2-dockercluster
+  failurePolicy: Fail
+  matchPolicy: Equivalent
+  name: validation.dockercluster.infrastructure.cluster.x-k8s.io
+  rules:
+  - apiGroups:
+    - infrastructure.cluster.x-k8s.io
+    apiVersions:
+    - v1beta2
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - dockerclusters
+  sideEffects: None
+- admissionReviewVersions:
+  - v1
+  - v1beta1
+  clientConfig:
+    service:
+      name: webhook-service
+      namespace: system
+      path: /validate-infrastructure-cluster-x-k8s-io-v1beta2-dockerclustertemplate
+  failurePolicy: Fail
+  matchPolicy: Equivalent
+  name: validation.dockerclustertemplate.infrastructure.cluster.x-k8s.io
+  rules:
+  - apiGroups:
+    - infrastructure.cluster.x-k8s.io
+    apiVersions:
+    - v1beta2
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - dockerclustertemplates
+  sideEffects: None
+- admissionReviewVersions:
+  - v1
+  - v1beta1
+  clientConfig:
+    service:
+      name: webhook-service
+      namespace: system
+      path: /validate-infrastructure-cluster-x-k8s-io-v1beta2-dockermachinetemplate
+  failurePolicy: Fail
+  matchPolicy: Equivalent
+  name: validation.dockermachinetemplate.infrastructure.cluster.x-k8s.io
+  rules:
+  - apiGroups:
+    - infrastructure.cluster.x-k8s.io
+    apiVersions:
+    - v1beta2
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - dockermachinetemplates
+  sideEffects: None
+- admissionReviewVersions:
+  - v1
+  clientConfig:
+    service:
+      name: webhook-service
+      namespace: system
+      path: /validate-bootstrap-cluster-x-k8s-io-v1beta1-rke2config
+  failurePolicy: Fail
+  name: vrke2config.kb.io
+  rules:
+  - apiGroups:
+    - bootstrap.cluster.x-k8s.io
+    apiVersions:
+    - v1beta1
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - rke2configs
+  sideEffects: None
+- admissionReviewVersions:
+  - v1
+  clientConfig:
+    service:
+      name: webhook-service
+      namespace: system
+      path: /validate-bootstrap-cluster-x-k8s-io-v1beta1-rke2configtemplate
+  failurePolicy: Fail
+  name: vrke2configtemplate.kb.io
+  rules:
+  - apiGroups:
+    - bootstrap.cluster.x-k8s.io
+    apiVersions:
+    - v1beta1
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - rke2configtemplates
+  sideEffects: None
+- admissionReviewVersions:
+  - v1
+  clientConfig:
+    service:
+      name: webhook-service
+      namespace: system
+      path: /validate-controlplane-cluster-x-k8s-io-v1beta1-rke2controlplane
+  failurePolicy: Fail
+  name: vrke2controlplane.kb.io
+  rules:
+  - apiGroups:
+    - controlplane.cluster.x-k8s.io
+    apiVersions:
+    - v1beta1
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - rke2controlplanes
+  sideEffects: None
+- admissionReviewVersions:
+  - v1
+  clientConfig:
+    service:
+      name: webhook-service
+      namespace: system
+      path: /validate-controlplane-cluster-x-k8s-io-v1beta1-rke2controlplanetemplate
+  failurePolicy: Fail
+  name: vrke2controlplanetemplate.kb.io
+  rules:
+  - apiGroups:
+    - controlplane.cluster.x-k8s.io
+    apiVersions:
+    - v1beta1
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - rke2controlplanetemplates
+  sideEffects: None

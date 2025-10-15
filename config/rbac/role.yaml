@@ -11,8 +11,6 @@ rules:
   verbs:
   - get
   - list
-  - patch
-  - update
   - watch
 - apiGroups:
   - cluster.x-k8s.io
@@ -30,41 +28,10 @@ rules:
   resources:
   - machines
   - machines/status
-  - machinesets
-  - machinesets/status
   verbs:
   - get
   - list
   - watch
-- apiGroups:
-  - infrastructure.cluster.x-k8s.io
-  resources:
-  - oneclusters
-  - onemachines
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - infrastructure.cluster.x-k8s.io
-  resources:
-  - oneclusters/finalizers
-  - onemachines/finalizers
-  verbs:
-  - update
-- apiGroups:
-  - infrastructure.cluster.x-k8s.io
-  resources:
-  - oneclusters/status
-  - onemachines/status
-  verbs:
-  - get
-  - patch
-  - update
 - apiGroups:
   - infrastructure.evroc.com
   resources:
