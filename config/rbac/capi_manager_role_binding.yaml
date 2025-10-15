@@ -23,3 +23,7 @@ subjects:
 - kind: ServiceAccount
   name: capi-kubeadm-control-plane-manager
   namespace: capi-kubeadm-control-plane-system
+# RKE2ControlPlane manager (creates and manages RKE2 control plane Machines)
+- kind: ServiceAccount
+  name: rke2-control-plane-manager
+  namespace: rke2-control-plane-system

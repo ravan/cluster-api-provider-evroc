@@ -1,0 +1,39 @@
+# Role for RKE2 Control Plane Manager to access Evroc infrastructure resources
+# The RKE2 control plane controller needs to read EvrocMachineTemplate to create machines
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: rke2-control-plane-evroc-reader
+rules:
+  # Allow reading and patching EvrocMachineTemplate resources
+  - apiGroups:
+      - infrastructure.evroc.com
+    resources:
+      - evrocmachinetemplates
+    verbs:
+      - get
+      - list
+      - watch
+      - patch
+      - update
+  # Allow reading and creating EvrocMachine resources (for cloning from template)
+  - apiGroups:
+      - infrastructure.evroc.com
+    resources:
+      - evrocmachines
+    verbs:
+      - get
+      - list
+      - watch
+      - create
+      - patch
+      - update
+  # Allow reading EvrocMachine status
+  - apiGroups:
+      - infrastructure.evroc.com
+    resources:
+      - evrocmachines/status
+    verbs:
+      - get
+      - list
+      - watch
