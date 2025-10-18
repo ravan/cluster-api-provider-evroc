@@ -1,0 +1,175 @@
+---
+# ClusterRole for Rancher to manage EVROC infrastructure resources
+# This allows Rancher Manager and Turtles to create/manage EVROC clusters
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: rancher-evroc-manager
+  labels:
+    app.kubernetes.io/name: rancher-evroc-integration
+    app.kubernetes.io/component: rbac
+rules:
+# EVROC infrastructure resources
+- apiGroups:
+  - infrastructure.evroc.com
+  resources:
+  - evrocclusters
+  - evrocmachines
+  - evrocmachinetemplates
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - infrastructure.evroc.com
+  resources:
+  - evrocclusters/status
+  - evrocmachines/status
+  - evrocmachinetemplates/status
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - infrastructure.evroc.com
+  resources:
+  - evrocclusters/finalizers
+  - evrocmachines/finalizers
+  - evrocmachinetemplates/finalizers
+  verbs:
+  - update
+# CAPI core resources (needed for cluster management)
+- apiGroups:
+  - cluster.x-k8s.io
+  resources:
+  - clusters
+  - machines
+  - machinedeployments
+  - machinesets
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - cluster.x-k8s.io
+  resources:
+  - clusters/status
+  - machines/status
+  - machinedeployments/status
+  - machinesets/status
+  verbs:
+  - get
+  - list
+  - watch
+# RKE2 bootstrap and control plane resources
+- apiGroups:
+  - bootstrap.cluster.x-k8s.io
+  resources:
+  - rke2configs
+  - rke2configtemplates
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - controlplane.cluster.x-k8s.io
+  resources:
+  - rke2controlplanes
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+# Secrets (for credentials and kubeconfigs)
+- apiGroups:
+  - ""
+  resources:
+  - secrets
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+---
+# ClusterRoleBinding for Rancher service account
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: rancher-evroc-manager
+  labels:
+    app.kubernetes.io/name: rancher-evroc-integration
+    app.kubernetes.io/component: rbac
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: rancher-evroc-manager
+subjects:
+# Rancher's main service account
+- kind: ServiceAccount
+  name: rancher
+  namespace: cattle-system
+# Rancher Turtles controller service account
+- kind: ServiceAccount
+  name: rancher-turtles-manager
+  namespace: rancher-turtles-system
+---
+# ClusterRoleBinding for CAPI controller to access EVROC resources
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: capi-evroc-manager
+  labels:
+    app.kubernetes.io/name: rancher-evroc-integration
+    app.kubernetes.io/component: rbac
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: rancher-evroc-manager
+subjects:
+# CAPI controller manager service account
+- kind: ServiceAccount
+  name: capi-controller-manager
+  namespace: capi-system
+# CAPI manager service account (used by cluster controller)
+- kind: ServiceAccount
+  name: capi-manager
+  namespace: capi-system
+---
+# Additional permissions for RKE2 control plane provider
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: rke2-controlplane-evroc-manager
+  labels:
+    app.kubernetes.io/name: rancher-evroc-integration
+    app.kubernetes.io/component: rbac
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: rancher-evroc-manager
+subjects:
+- kind: ServiceAccount
+  name: rke2-control-plane-controller-manager
+  namespace: rke2-control-plane-system
+# RKE2 control plane manager service account (alternate name)
+- kind: ServiceAccount
+  name: rke2-control-plane-manager
+  namespace: rke2-control-plane-system

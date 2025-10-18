@@ -1,0 +1,336 @@
+
+---
+# Secret containing Evroc credentials
+apiVersion: v1
+kind: Secret
+metadata:
+  name: "${CLUSTER_NAME}-evroc-credentials"
+  namespace: default
+  labels:
+    cluster.x-k8s.io/cluster-name: "${CLUSTER_NAME}"
+type: Opaque
+data:
+  # The kubeconfig from ~/.evroc/config.yaml will be base64 encoded here
+  # This gives the provider access to create resources in Evroc Cloud
+  config: ${EVROC_KUBECONFIG_B64}
+---
+# EvrocCluster defines the infrastructure for the cluster
+apiVersion: infrastructure.evroc.com/v1beta1
+kind: EvrocCluster
+metadata:
+  name: "${CLUSTER_NAME}"
+  namespace: default
+  labels:
+    cluster.x-k8s.io/cluster-name: "${CLUSTER_NAME}"
+spec:
+  # Evroc region and project
+  region: "${EVROC_REGION}"
+  project: "${EVROC_PROJECT}"
+
+  # Reference to the secret containing Evroc credentials (OIDC kubeconfig)
+  identitySecretName: "${CLUSTER_NAME}-evroc-credentials"
+
+  # Network configuration
+  network:
+    # VPC configuration
+    vpc:
+      name: "${EVROC_VPC_NAME}"
+
+    # Subnet configuration
+    subnets:
+      - name: "${EVROC_SUBNET_NAME}"
+        cidrBlock: "${EVROC_SUBNET_CIDR}"
+
+  # Control plane endpoint (will be set to the first control plane node's IP)
+  # This can be a load balancer or floating IP in production
+  controlPlaneEndpoint:
+    host: ""  # Will be populated by the controller
+    port: 6443
+---
+# Cluster is the top-level CAPI resource
+apiVersion: cluster.x-k8s.io/v1beta1
+kind: Cluster
+metadata:
+  name: "${CLUSTER_NAME}"
+  namespace: default
+  labels:
+    cluster.x-k8s.io/cluster-name: "${CLUSTER_NAME}"
+    # Enable Rancher Turtles auto-import
+    cluster-api.cattle.io/rancher-auto-import: "true"
+spec:
+  clusterNetwork:
+    pods:
+      cidrBlocks:
+        - "${POD_CIDR}"
+    services:
+      cidrBlocks:
+        - "${SERVICE_CIDR}"
+
+  # Reference to infrastructure provider (EvrocCluster)
+  infrastructureRef:
+    apiVersion: infrastructure.evroc.com/v1beta1
+    kind: EvrocCluster
+    name: "${CLUSTER_NAME}"
+    namespace: default
+
+  # Reference to control plane provider (RKE2ControlPlane)
+  controlPlaneRef:
+    apiVersion: controlplane.cluster.x-k8s.io/v1beta1
+    kind: RKE2ControlPlane
+    name: "${CLUSTER_NAME}-control-plane"
+    namespace: default
+---
+# EvrocMachineTemplate for control plane nodes
+apiVersion: infrastructure.evroc.com/v1beta1
+kind: EvrocMachineTemplate
+metadata:
+  name: "${CLUSTER_NAME}-control-plane"
+  namespace: default
+  labels:
+    cluster.x-k8s.io/cluster-name: "${CLUSTER_NAME}"
+spec:
+  template:
+    spec:
+      # Machine type (e.g., c1a.s, m1a.l)
+      virtualResourcesRef: "${EVROC_CONTROL_PLANE_MACHINE_TYPE}"
+
+      # Boot disk configuration
+      bootDisk:
+        imageName: "${EVROC_IMAGE_NAME}"
+        storageClass: "persistent"
+        sizeGB: ${EVROC_DISK_SIZE}
+
+      # SSH key for access
+      sshKey: "${EVROC_SSH_KEY}"
+
+      # Subnet to attach to
+      subnetName: "${EVROC_SUBNET_NAME}"
+
+      # Security groups for firewall rules
+      securityGroups:
+        - "capi-kubernetes"
+
+      # Allocate public IP for control plane
+      publicIP: true
+---
+# RKE2ControlPlane manages control plane machines
+apiVersion: controlplane.cluster.x-k8s.io/v1beta1
+kind: RKE2ControlPlane
+metadata:
+  name: "${CLUSTER_NAME}-control-plane"
+  namespace: default
+  labels:
+    cluster.x-k8s.io/cluster-name: "${CLUSTER_NAME}"
+spec:
+  replicas: ${CONTROL_PLANE_MACHINE_COUNT}
+  version: "${RKE2_VERSION}"
+
+  # Reference to infrastructure template
+  machineTemplate:
+    infrastructureRef:
+      apiVersion: infrastructure.evroc.com/v1beta1
+      kind: EvrocMachineTemplate
+      name: "${CLUSTER_NAME}-control-plane"
+      namespace: default
+
+  # RKE2 server configuration
+  serverConfig:
+    # CNI plugin to use (canal, calico, cilium, none)
+    # Canal is the default in RKE2 (Flannel + Calico network policy)
+    cni: canal
+
+    # Kube-controller-manager configuration
+    # IMPORTANT: Set node-cidr-mask-size to allocate larger pod CIDR per node
+    # Default /24 (254 IPs) is insufficient for Rancher agents + system pods
+    # /22 provides 1024 IPs per node, which is suitable for small clusters
+    kubeControllerManager:
+      extraArgs:
+        - --node-cidr-mask-size=22
+
+  # Registration method for nodes joining the cluster
+  # control-plane-endpoint: Use the cluster's control plane endpoint
+  # internal-first: Prefer internal IPs, fallback to external
+  registrationMethod: control-plane-endpoint
+
+  # Rollout strategy for control plane updates
+  rolloutStrategy:
+    type: "RollingUpdate"
+    rollingUpdate:
+      maxSurge: 1
+
+  # Agent configuration (applies to all nodes including control plane)
+  agentConfig:
+    # Additional user data for cloud-init
+    # IMPORTANT: Evroc requires SSH keys to be templated using Jinja2
+    # See: https://docs.evroc.com/products/compute/howto/using-custom-cloud-init-userdata.html
+    additionalUserData:
+      config: |
+        users:
+          - name: evroc-user
+            gecos: Evroc VM user
+            sudo: ALL=(ALL) NOPASSWD:ALL
+            groups: sudo
+            shell: /bin/bash
+            # Inject SSH keys from Evroc meta-data using Jinja2 template
+            # This is required because we're providing custom cloud-init
+            ssh-authorized-keys:
+              - '{% if public_ssh_keys %}{% for pubkey in public_ssh_keys %}{{ pubkey }}{% endfor %}{% endif %}'
+
+  # Pre-RKE2 commands to prepare the node
+  preRKE2Commands:
+    - echo "Preparing node for RKE2 installation"
+
+    # Disable swap permanently (critical for kubelet stability)
+    - swapoff -a
+    - sed -i.bak '/ swap / s/^/#/' /etc/fstab || true
+
+    # Ensure unique hostname using instance-id (prevents etcd member name collisions)
+    - |
+      instance_id="{{ ds.meta_data['instance-id'] }}"
+      if [ -n "$instance_id" ]; then
+        # Use first 8 chars of instance-id for unique hostname
+        short_id=$(echo "$instance_id" | cut -d'-' -f1)
+        unique_hostname="rke2-cp-$short_id"
+        echo "Setting unique hostname: $unique_hostname"
+        hostnamectl set-hostname "$unique_hostname"
+      else
+        # Fallback to cloud-init provided hostname
+        hostnamectl set-hostname '{{ ds.meta_data.local_hostname }}'
+      fi
+      hostnamectl status
+
+    # Configure kernel modules and sysctl for Kubernetes
+    - modprobe overlay
+    - modprobe br_netfilter
+    - echo 'net.bridge.bridge-nf-call-iptables = 1' >> /etc/sysctl.conf
+    - echo 'net.bridge.bridge-nf-call-ip6tables = 1' >> /etc/sysctl.conf
+    - echo 'net.ipv4.ip_forward = 1' >> /etc/sysctl.conf
+    - sysctl -p
+
+    # Install containerd (RKE2 will use it)
+    - apt-get update
+    - apt-get install -y apt-transport-https ca-certificates curl gpg containerd
+    - mkdir -p /etc/containerd
+    - containerd config default > /etc/containerd/config.toml
+    - sed -i 's/SystemdCgroup = false/SystemdCgroup = true/' /etc/containerd/config.toml
+    - systemctl enable --now containerd
+
+  # Post-RKE2 commands (optional, minimal for RKE2)
+  postRKE2Commands:
+    - echo "RKE2 installation complete"
+
+  # No need for gzip compression
+  gzipUserData: false
+---
+# EvrocMachineTemplate for worker nodes
+apiVersion: infrastructure.evroc.com/v1beta1
+kind: EvrocMachineTemplate
+metadata:
+  name: "${CLUSTER_NAME}-worker"
+  namespace: default
+  labels:
+    cluster.x-k8s.io/cluster-name: "${CLUSTER_NAME}"
+spec:
+  template:
+    spec:
+      # Machine type for workers
+      virtualResourcesRef: "${EVROC_WORKER_MACHINE_TYPE}"
+
+      # Boot disk configuration
+      bootDisk:
+        imageName: "${EVROC_IMAGE_NAME}"
+        storageClass: "persistent"
+        sizeGB: ${EVROC_DISK_SIZE}
+
+      # SSH key for access
+      sshKey: "${EVROC_SSH_KEY}"
+
+      # Subnet to attach to
+      subnetName: "${EVROC_SUBNET_NAME}"
+
+      # Security groups for firewall rules
+      securityGroups:
+        - "capi-kubernetes"
+
+      # Workers don't need public IPs
+      publicIP: false
+---
+# RKE2ConfigTemplate for worker nodes
+apiVersion: bootstrap.cluster.x-k8s.io/v1beta1
+kind: RKE2ConfigTemplate
+metadata:
+  namespace: default
+  name: "${CLUSTER_NAME}-worker"
+  labels:
+    cluster.x-k8s.io/cluster-name: "${CLUSTER_NAME}"
+spec:
+  template:
+    spec:
+      # Agent configuration for worker nodes
+      agentConfig: {}
+
+      # Pre-RKE2 commands for worker nodes
+      preRKE2Commands:
+        - echo "Preparing worker node"
+
+        # Set hostname
+        - hostnamectl set-hostname '{{ ds.meta_data.local_hostname }}'
+
+        # Configure kernel modules and sysctl for Kubernetes
+        - modprobe overlay
+        - modprobe br_netfilter
+        - echo 'net.bridge.bridge-nf-call-iptables = 1' >> /etc/sysctl.conf
+        - echo 'net.bridge.bridge-nf-call-ip6tables = 1' >> /etc/sysctl.conf
+        - echo 'net.ipv4.ip_forward = 1' >> /etc/sysctl.conf
+        - sysctl -p
+
+        # Install containerd
+        - apt-get update
+        - apt-get install -y apt-transport-https ca-certificates curl gpg containerd
+        - mkdir -p /etc/containerd
+        - containerd config default > /etc/containerd/config.toml
+        - sed -i 's/SystemdCgroup = false/SystemdCgroup = true/' /etc/containerd/config.toml
+        - systemctl enable --now containerd
+
+      gzipUserData: false
+---
+# MachineDeployment manages worker machines
+apiVersion: cluster.x-k8s.io/v1beta1
+kind: MachineDeployment
+metadata:
+  name: "${CLUSTER_NAME}-workers"
+  namespace: default
+  labels:
+    cluster.x-k8s.io/cluster-name: "${CLUSTER_NAME}"
+spec:
+  clusterName: "${CLUSTER_NAME}"
+  replicas: ${WORKER_MACHINE_COUNT}
+
+  selector:
+    matchLabels:
+      cluster.x-k8s.io/cluster-name: "${CLUSTER_NAME}"
+      cluster.x-k8s.io/deployment-name: "${CLUSTER_NAME}-workers"
+
+  template:
+    metadata:
+      labels:
+        cluster.x-k8s.io/cluster-name: "${CLUSTER_NAME}"
+        cluster.x-k8s.io/deployment-name: "${CLUSTER_NAME}-workers"
+    spec:
+      clusterName: "${CLUSTER_NAME}"
+      version: "${RKE2_VERSION}"
+
+      # Reference to bootstrap provider
+      bootstrap:
+        configRef:
+          apiVersion: bootstrap.cluster.x-k8s.io/v1beta1
+          kind: RKE2ConfigTemplate
+          name: "${CLUSTER_NAME}-worker"
+          namespace: default
+
+      # Reference to infrastructure provider
+      infrastructureRef:
+        apiVersion: infrastructure.evroc.com/v1beta1
+        kind: EvrocMachineTemplate
+        name: "${CLUSTER_NAME}-worker"
+        namespace: default
