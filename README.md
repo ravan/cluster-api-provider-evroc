@@ -15,6 +15,10 @@ This provider implements the Cluster API specification to provision and manage K
 - **RKE2** - ✅ **Recommended** - Stable, works out of the box
 - **kubeadm** - ⚠️ **Experimental** - Known etcd stability issues (~6 minutes after init, see [Known Issues](#known-issues))
 
+**Management Options:**
+- **Standalone** - Use clusterctl and kubectl to manage clusters
+- **Rancher Turtles** - ⚠️ **Experimental** - Manage clusters via Rancher UI (see [Rancher Turtles Integration](#rancher-turtles-integration-experimental))
+
 ## Prerequisites
 
 - Go 1.24+
@@ -76,6 +80,64 @@ kubectl cluster-info
 ```bash
 ./test/e2e/e2e-test-rke2.sh cleanup
 ```
+
+### Rancher Turtles Integration (Experimental)
+
+Manage EVROC clusters through Rancher UI using CAPI. ⚠️ Requires manual ProviderID workaround (see Known Issues).
+
+#### Quick Start
+
+1. **Setup Rancher management cluster:**
+```bash
+./test/e2e/setup-rancher-turtles.sh
+source test/e2e/.env  # Configure EVROC_REGION, EVROC_PROJECT, etc.
+```
+
+2. **Install and run EVROC provider:**
+```bash
+make install && kubectl apply -k config/rancher/
+make run  # In separate terminal
+```
+
+3. **Create cluster with auto-import:**
+```bash
+export KIND_CLUSTER_NAME="rancher-mgmt"
+./test/e2e/e2e-test-rancher.sh run
+```
+
+4. **Access Rancher UI:**
+```bash
+# URL: https://localhost
+# Password:
+kubectl get secret --namespace cattle-system bootstrap-secret -o go-template='{{.data.bootstrapPassword|base64decode}}{{ "\n" }}'
+```
+
+Navigate to **Cluster Management** to see your cluster.
+
+**Monitor:** `./test/e2e/e2e-test-rancher.sh monitor`
+**Cleanup:** `./test/e2e/e2e-test-rancher.sh cleanup-all`
+
+#### Template Differences
+
+Template `templates/cluster-template-rancher.yaml` adds:
+- Auto-import label: `cluster-api.cattle.io/rancher-auto-import: "true"`
+- Node CIDR sizing: `--node-cidr-mask-size=22` (1024 IPs for Rancher agents)
+- Cloud provider: `cloudProviderName: external`
+
+#### Known Issues
+
+**CNI IP Exhaustion** - ✅ Resolved via `--node-cidr-mask-size=22` in template
+
+**ProviderID Mismatch** - ⚠️ Requires manual workaround:
+```bash
+# After cluster creation
+PROVIDER_ID=$(kubectl get machine <name> -o jsonpath='{.spec.providerID}')
+kubectl --kubeconfig=<workload> patch node <name> -p '{"spec":{"providerID":"'$PROVIDER_ID'"}}'
+kubectl --kubeconfig=<workload> taint node <name> node.cloudprovider.kubernetes.io/uninitialized:NoSchedule-
+```
+**Root Cause:** `cloudProviderName: external` requires EVROC Cloud Controller Manager (CCM) to set providerID and remove taint. CCM implementation planned.
+
+**Files:** `test/e2e/setup-rancher-turtles.sh`, `test/e2e/e2e-test-rancher.sh`, `templates/cluster-template-rancher.yaml`
 
 ### Production Deployment
 
@@ -219,6 +281,11 @@ source test/e2e/.env
 make run                                     # Run provider locally
 ./test/e2e/e2e-test-rke2.sh create-cluster  # Create test cluster
 ./test/e2e/e2e-test-rke2.sh cleanup         # Clean up resources
+
+# Rancher Turtles integration (experimental)
+./test/e2e/setup-rancher-turtles.sh         # One-time setup
+make install && make run                     # Install CRDs and run provider
+./test/e2e/e2e-test-rancher.sh run          # Create cluster with auto-import
 
 # kubeadm (experimental, has etcd issues)
 ./test/e2e/e2e-test.sh run
