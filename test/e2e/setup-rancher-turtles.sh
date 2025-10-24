@@ -55,7 +55,7 @@ readonly KUBERNETES_VERSION="${KUBERNETES_VERSION:-1.31.4}"
 readonly KIND_CLUSTER_NAME="${KIND_CLUSTER_NAME:-rancher-mgmt}"
 readonly RANCHER_HOSTNAME="${RANCHER_HOSTNAME:-localhost}"
 readonly RANCHER_BOOTSTRAP_PASSWORD="${RANCHER_BOOTSTRAP_PASSWORD:-admin}"
-readonly EXTERNAL_HOSTNAME="${EXTERNAL_HOSTNAME:-}"  # Optional external hostname (e.g., ngrok URL)
+readonly EXTERNAL_HOSTNAME="${EXTERNAL_HOSTNAME:-rancher2-rnaidoo.ngrok.io}"  # Optional external hostname (e.g., ngrok URL)
 
 # EVROC configuration
 readonly EVROC_NAMESPACE="${EVROC_NAMESPACE:-evroc-capi-system}"
